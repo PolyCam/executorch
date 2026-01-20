@@ -127,7 +127,7 @@ endif()
 # they can be properly gc'd. -s: strip symbol.
 if(WIN32)
   set(CMAKE_CXX_FLAGS_RELEASE "/Gy /Gw ${CMAKE_CXX_FLAGS_RELEASE}")
-else()
+elseif(NOT APPLE)
   set(CMAKE_CXX_FLAGS_RELEASE
       "-ffunction-sections -fdata-sections ${CMAKE_CXX_FLAGS_RELEASE}"
   )
