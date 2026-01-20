@@ -281,6 +281,7 @@ endif()
 list(APPEND _common_compile_options $<$<CXX_COMPILER_ID:MSVC>:/wd4996>
      $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wno-deprecated-declarations>
 )
+list(APPEND _common_compile_options -Wno-unused)
 # Set default CMAKE_POSITION_INDEPENDENT_CODE behavior if ON or not set
 # (default) (and not for MSVC compiler)
 if(NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE

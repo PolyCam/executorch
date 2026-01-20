@@ -113,7 +113,7 @@ target_include_directories(
 if(APPLE)
   target_link_libraries(coreml_util PRIVATE ${FOUNDATION_FRAMEWORK})
 endif()
-target_compile_options(coreml_util PUBLIC -fPIC)
+target_compile_options(coreml_util PUBLIC -fPIC -Wno-unused)
 
 install(TARGETS coreml_util DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
@@ -150,7 +150,7 @@ if(APPLE)
     coreml_inmemoryfs PRIVATE coreml_util ${FOUNDATION_FRAMEWORK}
   )
 endif()
-target_compile_options(coreml_inmemoryfs PUBLIC -fPIC)
+target_compile_options(coreml_inmemoryfs PUBLIC -fPIC -Wno-unused)
 
 install(
   TARGETS coreml_inmemoryfs
