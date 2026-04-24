@@ -12,6 +12,7 @@
 #include <executorch/runtime/platform/assert.h>
 
 #include <optional>
+#include <type_traits>
 
 namespace torch {
 namespace executor {
@@ -19,6 +20,18 @@ namespace native {
 
 using Tensor = executorch::aten::Tensor;
 using ScalarType = executorch::aten::ScalarType;
+
+namespace {
+// Accumulator type: fp32 for half-precision inputs (to avoid significant
+// precision loss over long reductions of 16-bit values), otherwise the
+// input dtype itself.
+template <typename CTYPE>
+using SumAccType = std::conditional_t<
+    std::is_same_v<CTYPE, executorch::aten::Half> ||
+        std::is_same_v<CTYPE, executorch::aten::BFloat16>,
+    float,
+    CTYPE>;
+} // namespace
 
 Tensor& sum_dim_out(
     KernelRuntimeContext& ctx,
@@ -61,15 +74,16 @@ Tensor& sum_dim_out(
       // @lint-ignore CLANGTIDY facebook-hte-CArray
       static constexpr const char op_name[] = "sum.IntList_out";
       ET_SWITCH_REALHBBF16_TYPES(in.scalar_type(), ctx, op_name, CTYPE, [&] {
+        using ACC = SumAccType<CTYPE>;
         const CTYPE* in_data = in.const_data_ptr<CTYPE>();
         CTYPE* out_data = out.mutable_data_ptr<CTYPE>();
         for (int64_t i = 0; i < outer_size; i++) {
           const CTYPE* row = in_data + i * reduce_size;
-          CTYPE acc = 0;
+          ACC acc = 0;
           for (int64_t j = 0; j < reduce_size; j++) {
-            acc += row[j];
+            acc += static_cast<ACC>(row[j]);
           }
-          out_data[i] = acc;
+          out_data[i] = static_cast<CTYPE>(acc);
         }
       });
       return out;
@@ -108,23 +122,23 @@ Tensor& sum_dim_out(
     ET_SWITCH_REALHBBF16_TYPES(in.scalar_type(), ctx, op_name, CTYPE_IN, [&] {
       ET_SWITCH_REALHBBF16_TYPES(
           out.scalar_type(), ctx, op_name, CTYPE_OUT, [&] {
+            using ACC = SumAccType<CTYPE_OUT>;
             CTYPE_OUT* out_data = out.mutable_data_ptr<CTYPE_OUT>();
             const bool success =
                 parallel_for_each_reduce_over_dim_list_output_index(
                     in, dim_list, out, [&](const auto begin, const auto end) {
                       for (const auto out_ix : c10::irange(begin, end)) {
-                        CTYPE_OUT sum = 0;
+                        ACC sum = 0;
                         if (plan.has_value()) {
-                          sum = plan->execute<CTYPE_IN, CTYPE_OUT>(
-                              [](CTYPE_IN v) {
-                                return static_cast<CTYPE_OUT>(v);
-                              },
-                              [](CTYPE_OUT outv, CTYPE_OUT acc) {
-                                return acc + outv;
-                              },
+                          // Accumulate in ACC (fp32 for half outputs) to
+                          // avoid cumulative precision loss over long
+                          // reductions of 16-bit values.
+                          sum = plan->execute<CTYPE_IN, ACC>(
+                              [](CTYPE_IN v) { return static_cast<ACC>(v); },
+                              [](ACC outv, ACC acc) { return acc + outv; },
                               out_ix);
                         }
-                        out_data[out_ix] = sum;
+                        out_data[out_ix] = static_cast<CTYPE_OUT>(sum);
                       }
                     });
             ET_KERNEL_CHECK_MSG(
