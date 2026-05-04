@@ -24,14 +24,14 @@ jobs:
           submodules: recursive
 
       - name: install uv
-        uses: astral-sh/setup-uv@v4
+        uses: astral-sh/setup-uv@v8
         with:
           enable-cache: true
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: install torch + executorch python deps
         run: |
-          uv venv .venv --python 3.11
+          uv venv .venv --python 3.12
           source .venv/bin/activate
           # install_requirements.sh reads torch_pin.py for the pinned
           # version + index URL (CPU wheels on macOS, no CUDA).
