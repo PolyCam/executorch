@@ -1,0 +1,108 @@
+name: cd
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Package version (e.g., 0.1.0)
+        required: true
+        type: string
+        default: 0.0.0
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  build-android:
+    runs-on:
+      - self-hosted
+      - macOS
+    env:
+      # Override on the runner (Settings → Variables) if the venv lives
+      # somewhere other than the default. The wrapper falls back to
+      # `command -v python3` when this is empty.
+      PYTHON_EXECUTABLE: ${{ vars.EXECUTORCH_PYTHON_EXECUTABLE }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: verify python has torch
+        run: |
+          PY="${PYTHON_EXECUTABLE:-$(command -v python3)}"
+          echo "Using python: $PY"
+          "$PY" -c 'import torch; print("torch", torch.__version__)' || {
+            echo "::error::python3 cannot import torch. Set the EXECUTORCH_PYTHON_EXECUTABLE repo variable to a venv with torch installed (e.g. ~/polyml/polydepth/.venv/bin/python3)."
+            exit 1
+          }
+
+      - name: build android aar
+        run: bash scripts/build-polycam-aar.sh android
+
+      - name: create archive
+        run: tar -czf dist/executorch-android.tgz -C dist/android executorch.aar
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: executorch-android.tgz
+          path: dist/executorch-android.tgz
+          retention-days: 1
+
+  release:
+    needs: [build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: compute release info
+        id: info
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          if [[ "${{ inputs.version }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "prerelease=false" >> $GITHUB_OUTPUT
+          else
+            echo "prerelease=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: create github release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          target_commitish: ${{ steps.info.outputs.sha }}
+          name: v${{ inputs.version }}
+          body: '@poly/executorch v${{ inputs.version }}'
+          prerelease: ${{ steps.info.outputs.prerelease == 'true' }}
+          files: |
+            artifacts/executorch-android.tgz
+
+  publish-npm:
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: publish
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/service_key.json
+        run: |
+          echo "${{ secrets.ARTIFACT_REGISTRY_KEY }}" | base64 -d > "$GOOGLE_APPLICATION_CREDENTIALS"
+          npx google-artifactregistry-auth
+          npm version "${{ inputs.version }}" --no-git-tag-version --allow-same-version
+          npm publish --registry https://us-central1-npm.pkg.dev/polycam-shared-infra-prod/npm/

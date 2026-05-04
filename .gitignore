@@ -20,7 +20,10 @@ backends/webgpu/third-party/
 build-android/
 build-x86/
 build-direct/
-dist/
+dist/*
+!dist/bin/
+!dist/types/
+aar-out/
 arm-scratch/
 executorch.egg-info
 pip-out/

@@ -1,0 +1,19 @@
+{
+  "name": "@poly/executorch",
+  "version": "0.0.0",
+  "description": "Polycam's ExecuTorch fork — Android AAR with Vulkan + NEON + etdump",
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/PolyCam/executorch",
+  "repository": {
+    "url": "git+https://github.com/PolyCam/executorch.git",
+    "type": "git"
+  },
+  "types": "dist/types/index.d.ts",
+  "bin": {
+    "ensure-native": "dist/bin/ensure-native.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "packageManager": "yarn@4.9.1"
+}
