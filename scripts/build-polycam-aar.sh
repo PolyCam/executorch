@@ -41,6 +41,9 @@ mkdir -p "${BUILD_AAR_DIR}"
 # line. Patch via sed into a tempfile so the upstream script stays clean.
 PATCHED_SCRIPT="$(mktemp -t build_android_library.XXXXXX.sh)"
 trap 'rm -f "${PATCHED_SCRIPT}"' EXIT
+# shellcheck disable=SC2016
+# ${PYTHON_EXECUTABLE} is deliberately written verbatim into the patched
+# script — it expands when the patched script runs, not here.
 sed 's|-DCMAKE_TOOLCHAIN_FILE=|-DPYTHON_EXECUTABLE="${PYTHON_EXECUTABLE}" -DCMAKE_TOOLCHAIN_FILE=|' \
   scripts/build_android_library.sh > "${PATCHED_SCRIPT}"
 chmod +x "${PATCHED_SCRIPT}"
