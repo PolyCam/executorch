@@ -107,18 +107,14 @@ testing alternate releases:
 
 ## One-time CI configuration
 
-`PolyCam/executorch` repo settings need:
+`PolyCam/executorch` repo settings need the **`ARTIFACT_REGISTRY_KEY`**
+secret — copy the base64-encoded GCP service-account key value from
+the corresponding `PolyCam/polycpp` secret (Settings → Secrets and
+variables → Actions). Same SA, no new IAM. The value is not
+retrievable via `gh secret list`; pull it from your local 1Password /
+shared secret store and set it with
+`gh secret set ARTIFACT_REGISTRY_KEY -R PolyCam/executorch`.
 
-1. **Secret `ARTIFACT_REGISTRY_KEY`** — copy the base64-encoded GCP
-   service-account key value from the corresponding `PolyCam/polycpp`
-   secret (Settings → Secrets and variables → Actions). Same SA, no
-   new IAM. The value is not retrievable via `gh secret list`; pull it
-   from your local 1Password / shared secret store and re-set with
-   `gh secret set ARTIFACT_REGISTRY_KEY -R PolyCam/executorch`.
-
-2. **Variable `EXECUTORCH_PYTHON_EXECUTABLE`** (optional) — absolute
-   path to a `python3` with `torch` installed on the self-hosted macOS
-   runner (e.g. `/Users/polycam/polyml/polydepth/.venv/bin/python3`).
-   The CD workflow's `verify python has torch` step fails fast with a
-   clear error if neither this variable nor the runner's default
-   `python3` can import torch.
+Python + torch are provisioned per-run by the CD workflow itself via
+`astral-sh/setup-uv` + `bash install_requirements.sh`, so the
+self-hosted runner does not need a pre-installed venv.

@@ -17,25 +17,26 @@ jobs:
     runs-on:
       - self-hosted
       - macOS
-    env:
-      # Override on the runner (Settings → Variables) if the venv lives
-      # somewhere other than the default. The wrapper falls back to
-      # `command -v python3` when this is empty.
-      PYTHON_EXECUTABLE: ${{ vars.EXECUTORCH_PYTHON_EXECUTABLE }}
     steps:
       - name: checkout
         uses: actions/checkout@v6
         with:
           submodules: recursive
 
-      - name: verify python has torch
+      - name: install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+          python-version: "3.11"
+
+      - name: install torch + executorch python deps
         run: |
-          PY="${PYTHON_EXECUTABLE:-$(command -v python3)}"
-          echo "Using python: $PY"
-          "$PY" -c 'import torch; print("torch", torch.__version__)' || {
-            echo "::error::python3 cannot import torch. Set the EXECUTORCH_PYTHON_EXECUTABLE repo variable to a venv with torch installed (e.g. ~/polyml/polydepth/.venv/bin/python3)."
-            exit 1
-          }
+          uv venv .venv --python 3.11
+          source .venv/bin/activate
+          # install_requirements.sh reads torch_pin.py for the pinned
+          # version + index URL (CPU wheels on macOS, no CUDA).
+          bash install_requirements.sh
+          echo "PYTHON_EXECUTABLE=$PWD/.venv/bin/python" >> "$GITHUB_ENV"
 
       - name: build android aar
         run: bash scripts/build-polycam-aar.sh android
