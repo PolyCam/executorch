@@ -8,6 +8,8 @@
 
 #include <executorch/backends/vulkan/runtime/api/Context.h>
 
+#include <executorch/runtime/platform/log.h>
+
 #ifdef VULKAN_DEBUG
 #include <iomanip>
 #include <iostream>
@@ -49,6 +51,11 @@ Context::Context(vkapi::Adapter* adapter, const ContextConfig& config)
   if (adapter_p_->linear_tiling_3d_enabled()) {
     preferred_image_tiling_ = VK_IMAGE_TILING_LINEAR;
   }
+  ET_LOG(
+      Info,
+      "Vulkan device %s uses %s image tiling",
+      adapter_p_->device_name().c_str(),
+      preferred_image_tiling_ == VK_IMAGE_TILING_LINEAR ? "linear" : "optimal");
 }
 
 Context::~Context() {
