@@ -125,12 +125,8 @@ VulkanImage Allocator::create_image(
     VkSampler sampler,
     const bool allow_transfer,
     const bool allocate_memory) {
-  VkImageUsageFlags usage =
-      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-  if (allow_transfer) {
-    usage |=
-        (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-  }
+  const VkImageUsageFlags usage =
+      allow_transfer ? kImageUsageWithTransfer : kImageUsage;
 
   VmaAllocationCreateInfo alloc_create_info = gpuonly_resource_create_info();
 

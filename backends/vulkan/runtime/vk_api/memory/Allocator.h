@@ -23,6 +23,13 @@
 namespace vkcompute {
 namespace vkapi {
 
+// Usage flags of images created by Allocator::create_image.
+constexpr VkImageUsageFlags kImageUsage =
+    VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+constexpr VkImageUsageFlags kImageUsageWithTransfer =
+    kImageUsage | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+    VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
 /**
  * Indicates the direction of a copy to or from a staging buffer.
  *

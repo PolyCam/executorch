@@ -231,44 +231,49 @@ VkDevice create_logical_device(
   return handle;
 }
 
-bool test_linear_tiling_3d_image_support(
-    VkDevice device,
-    VkPhysicalDevice physical_device) {
-  // Test creating a 3D image with linear tiling to see if it is supported.
-  // According to the Vulkan spec, linear tiling may not be supported for 3D
-  // images.
-  VkExtent3D image_extents{1u, 1u, 1u};
-  const VkImageCreateInfo image_create_info{
-      VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, // sType
-      nullptr, // pNext
-      0u, // flags
-      VK_IMAGE_TYPE_3D, // imageType
-      VK_FORMAT_R32G32B32A32_SFLOAT, // format
-      image_extents, // extents
-      1u, // mipLevels
-      1u, // arrayLayers
-      VK_SAMPLE_COUNT_1_BIT, // samples
-      VK_IMAGE_TILING_LINEAR, // tiling
-      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, // usage
-      VK_SHARING_MODE_EXCLUSIVE, // sharingMode
-      0u, // queueFamilyIndexCount
-      nullptr, // pQueueFamilyIndices
-      VK_IMAGE_LAYOUT_UNDEFINED, // initialLayout
+bool test_linear_tiling_3d_image_support(VkPhysicalDevice physical_device) {
+  // Tensor images of every dtype share one tiling, so linear tiling is only
+  // used if all of their formats support it. vkCreateImage may succeed for
+  // unsupported combinations, so support must come from format queries.
+  constexpr VkFormat kTensorImageFormats[] = {
+      VK_FORMAT_R32G32B32A32_SFLOAT,
+      VK_FORMAT_R16G16B16A16_SFLOAT,
+      VK_FORMAT_R32G32B32A32_SINT,
+      VK_FORMAT_R32G32B32A32_UINT,
+      VK_FORMAT_R16G16B16A16_SINT,
+      VK_FORMAT_R16G16B16A16_UINT,
+      VK_FORMAT_R8G8B8A8_SINT,
+      VK_FORMAT_R8G8B8A8_UINT,
   };
-  VkImage image = VK_NULL_HANDLE;
-  VkResult res = vkCreateImage(device, &image_create_info, nullptr, &image);
+  constexpr VkFormatFeatureFlags kRequiredFeatures =
+      VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+      VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT | VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
+      VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
 
-  if (res == VK_SUCCESS) {
-    vkDestroyImage(device, image, nullptr);
+  for (const VkFormat format : kTensorImageFormats) {
+    // Checked first because some drivers (e.g. PowerVR) report no linear
+    // storage support here while still accepting linear image creation.
+    VkFormatProperties format_props;
+    vkGetPhysicalDeviceFormatProperties(physical_device, format, &format_props);
+    if ((format_props.linearTilingFeatures & kRequiredFeatures) !=
+        kRequiredFeatures) {
+      return false;
+    }
 
-    VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(
-        physical_device, VK_FORMAT_R32G32B32A32_SFLOAT, &props);
-
-    return props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT;
+    VkImageFormatProperties image_props;
+    const VkResult res = vkGetPhysicalDeviceImageFormatProperties(
+        physical_device,
+        format,
+        VK_IMAGE_TYPE_3D,
+        VK_IMAGE_TILING_LINEAR,
+        kImageUsageWithTransfer,
+        0u,
+        &image_props);
+    if (res != VK_SUCCESS) {
+      return false;
+    }
   }
-
-  return false;
+  return true;
 }
 
 } // namespace
@@ -300,7 +305,6 @@ Adapter::Adapter(
       sampler_cache_(device_.handle),
       vma_(instance_, physical_device_.handle, device_.handle),
       linear_tiling_3d_enabled_{test_linear_tiling_3d_image_support(
-          device_.handle,
           physical_device_.handle)},
       owns_device_{true} {}
 
@@ -324,7 +328,6 @@ Adapter::Adapter(
       sampler_cache_(device_.handle),
       vma_(instance_, physical_device_.handle, device_.handle),
       linear_tiling_3d_enabled_{test_linear_tiling_3d_image_support(
-          device_.handle,
           physical_device_.handle)},
       owns_device_{false} {
   std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
